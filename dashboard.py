@@ -29,7 +29,7 @@ def print_dashboard():
 
     keys = logs.get("keys", {})
     if not keys:
-        print("No keys logged yet. Run run.py or auto_reply.py first.")
+        print("No keys logged yet. Run run.py first.")
     else:
         for key_name, key_data in keys.items():
             status = "✅ Connected" if key_data.get("connected") else "❌ Missing"
@@ -40,7 +40,7 @@ def print_dashboard():
     # Runs section
     print("\n\n📊 RUN HISTORY")
     print_separator("-")
-    print(f"{'#':<4} {'DATE':<12} {'TIME':<10} {'TYPE':<15} {'TOPIC/URN':<35} {'STATUS':<12} {'PUBLISHED AT'}")
+    print(f"{'#':<4} {'DATE':<12} {'TIME':<10} {'TYPE':<15} {'TOPIC':<30} {'VERIFY':<25} {'STATUS':<12} {'PUBLISHED AT'}")
     print_separator("-")
 
     runs = logs.get("runs", [])
@@ -51,13 +51,17 @@ def print_dashboard():
             run_type = run.get("type", "unknown")
             date = run.get("date", "")
             time_val = run.get("time", "")
-            topic = run.get("topic", run.get("post_urn", ""))[:33]
+            topic = run.get("topic", run.get("post_urn", ""))[:28]
             status = "✅ Success" if run.get("success") else "❌ Failed"
-            published_at = run.get("published_at", "-")
-            print(f"{i:<4} {date:<12} {time_val:<10} {run_type:<15} {topic:<35} {status:<12} {published_at}")
+            published_at = run.get("published_at", "-")[:19]
+            verification = run.get("verification", "-")[:23]
+            print(f"{i:<4} {date:<12} {time_val:<10} {run_type:<15} {topic:<30} {verification:<25} {status:<12} {published_at}")
 
     print_separator()
     print(f"Total runs: {len(runs)}")
+    print(f"Successful posts: {len([r for r in runs if r.get('success') and r.get('type') == 'POST'])}")
+    print(f"Failed posts: {len([r for r in runs if not r.get('success') and r.get('type') == 'POST'])}")
+    print(f"Comment replies: {len([r for r in runs if r.get('type') == 'COMMENT REPLY'])}")
     print_separator()
 
 if __name__ == "__main__":
