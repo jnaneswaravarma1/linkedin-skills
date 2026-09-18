@@ -1,0 +1,60 @@
+{
+  "keys": {
+    "GEMINI_API_KEY": {
+      "connected": true,
+      "value": "AQ.Ab8RN6I...",
+      "last_updated": "2026-09-18 11:33:42",
+      "note": "Updated at 2026-09-18 11:33:42"
+    },
+    "PUBLORA_API_KEY": {
+      "connected": true,
+      "value": "sk_mu2jjkg...",
+      "last_updated": "2026-09-18 11:33:42",
+      "note": "Updated at 2026-09-18 11:33:42"
+    },
+    "LINKEDIN_PLATFORM_ID": {
+      "connected": true,
+      "value": "linkedin-c...",
+      "last_updated": "2026-09-18 11:33:42",
+      "note": "Updated at 2026-09-18 11:33:42"
+    },
+    "APIFY_TOKEN": {
+      "connected": true,
+      "value": "apify_api_...",
+      "last_updated": "2026-09-18 11:33:42",
+      "note": "Updated at 2026-09-18 11:33:42"
+    }
+  },
+  "runs": [
+    {
+      "type": "COMMENT REPLY",
+      "date": "2026-09-18",
+      "time": "10:05:31",
+      "topic": "urn:li:share:7505906074131120128",
+      "post_urn": "urn:li:share:7505906074131120128",
+      "comments_found": 2,
+      "replies_posted": 2,
+      "success": true,
+      "published_at": "10:05:31"
+    },
+    {
+      "type": "POST",
+      "date": "2026-09-18",
+      "time": "11:31:00",
+      "topic": "AI skills essential for founders in 2026",
+      "success": false,
+      "published_at": "-",
+      "post_id": "-"
+    },
+    {
+      "type": "POST",
+      "date": "2026-09-18",
+      "time": "11:35:00",
+      "topic": "AI skills essential for founders in 2026",
+      "success": true,
+      "published_at": "2026-09-18T06:04:58.064Z",
+      "post_id": "6aacd48a2026782830a1f8b9",
+      "verification": "PASSED VERIFICATION"
+    }
+  ]
+}
