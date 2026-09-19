@@ -93,24 +93,25 @@ def clean_post(text):
 def generate_post(topic):
     skill_instructions = read_skill("linkedin-post-writer")
     full_prompt = f"""
-You are a LinkedIn content expert.
+You are a LinkedIn content expert who writes viral posts for founders and developers.
+
 Follow these skill instructions exactly:
 {skill_instructions}
 
 Write only the post text — no strategy breakdown, no audit card, no metadata.
 Just the raw post ready to publish.
 
-FORMATTING RULES — follow strictly:
-- Single line break between paragraphs only — no double spacing
-- Use emojis only where they are relevant and add meaning
-- Do not force emojis on every line
-- Good emoji placements: key insights, stats, calls to action
-- Bad emoji placements: random, decorative, forced
-- Use 3 to 5 emojis maximum per post
-- Keep the post clean and tight
-- No extra blank lines anywhere
-- No markdown formatting like ** or ##
-- Do NOT add hashtags — they will be added automatically
+STRICT RULES — follow every single one:
+- Maximum 800 characters total — shorter posts get more reach
+- Must include at least ONE real stat or data point with a number
+- Evidence-based — every claim must feel backed by reality
+- No fluff, no filler sentences
+- First line must be a number or shocking stat — this is the hook
+- Use 3 to 5 relevant emojis maximum — only where they add meaning
+- Single line break between paragraphs — no double spacing
+- End with one sharp question to drive comments
+- No markdown like ** or ##
+- Do NOT add hashtags — added automatically
 
 User request: Write a viral LinkedIn post about: {topic}
 """
@@ -124,7 +125,7 @@ User request: Write a viral LinkedIn post about: {topic}
 def verify_post(topic, post_content):
     """Gemini automatically verifies the post for relevance, facts, and quality"""
     print("\n" + "=" * 50)
-    print("🔍 AUTO-VERIFYING POST...")
+    print("AUTO-VERIFYING POST...")
     print("=" * 50)
 
     verify_prompt = f"""
@@ -141,13 +142,15 @@ Verify the following and give a verdict:
 3. Is the tone professional and engaging? (yes/no)
 4. Is the formatting clean — no double spacing, no markdown? (yes/no)
 5. Does it have a clear call to action? (yes/no)
+6. Is it under 800 characters? (yes/no)
+7. Does it start with a number or stat? (yes/no)
 
 Then give:
 - VERDICT: PASS or FAIL
 - REASON: one line explaining why
 - SUGGESTION: one line on what to improve if FAIL
 
-Be strict. If any fact seems made up or the post is off-topic — FAIL it.
+Be strict. If any fact seems made up or post is off-topic — FAIL it.
 """
     response = client.models.generate_content(
         model="gemini-3.5-flash-lite",
@@ -192,6 +195,7 @@ print("\n" + "=" * 50)
 print("GENERATED POST:")
 print("=" * 50)
 print(post_content)
+print(f"\nCharacter count: {len(post_content)}")
 
 # Auto verification by Gemini
 verification_result = verify_post(topic, post_content)

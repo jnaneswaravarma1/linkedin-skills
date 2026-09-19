@@ -93,7 +93,6 @@ def get_comments_from_apify(post_urn):
     if response.status_code in [200, 201]:
         data = response.json()
         if isinstance(data, list):
-            # Filter out summary objects — keep only comment objects
             comments = [
                 item for item in data
                 if item.get("text") or item.get("commentText") or item.get("content")
@@ -103,17 +102,30 @@ def get_comments_from_apify(post_urn):
     return []
 
 def draft_reply(comment_text):
-    skill_instructions = read_skill("linkedin-comment-drafter")
+    """Draft an intellectually aware reply using Gemini"""
     prompt = f"""
-You are a LinkedIn engagement expert.
-Draft a short genuine reply to this comment.
-Keep it under 200 characters.
-Be conversational and add value.
-No hashtags.
+You are a LinkedIn engagement expert and critical thinker.
 
-Comment: {comment_text}
+Analyze this comment carefully:
+"{comment_text}"
 
-Write only the reply text — nothing else.
+Follow this exact process:
+1. CLAIM — What is the commenter actually saying?
+2. POSITION — Do they agree, disagree, or add nuance?
+3. YOUR STANCE — What is the post author's position?
+4. NUANCE — What important distinction should be made?
+5. CONTRIBUTION — What value can the reply add?
+
+Then write a reply that:
+- Acknowledges their point honestly — don't just agree blindly
+- Adds a specific insight or distinction they may have missed
+- Keeps the conversation going with substance
+- Sounds like a real human — not corporate, not sycophantic
+- Is under 200 characters
+- No hashtags
+- No "Spot on" or "Great point" openers
+
+Write ONLY the reply text — nothing else. No labels, no analysis, just the reply.
 """
     response = client.models.generate_content(
         model="gemini-3.5-flash-lite",
@@ -174,9 +186,9 @@ else:
         print(f"Comment: {comment_text}")
 
         if comment_text:
-            print("Drafting reply...")
+            print("\nAnalyzing and drafting reply...")
             reply = draft_reply(comment_text)
-            print(f"Reply: {reply}")
+            print(f"\nReply: {reply}")
 
             approve = input(f"\nPost this reply? (yes/no): ")
             if approve.lower() == "yes":
@@ -184,6 +196,8 @@ else:
                 if result.get("success"):
                     replies_posted += 1
                     print("✅ Reply posted!")
+                else:
+                    print("❌ Failed to post reply.")
             else:
                 print("Skipped.")
         time.sleep(2)
