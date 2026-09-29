@@ -3,26 +3,26 @@
     "GEMINI_API_KEY": {
       "connected": true,
       "value": "AQ.Ab8RN6I...",
-      "last_updated": "2026-09-21 23:09:59",
-      "note": "Updated at 2026-09-21 23:09:59"
+      "last_updated": "2026-09-29 14:11:06",
+      "note": "Updated at 2026-09-29 14:11:06"
     },
     "PUBLORA_API_KEY": {
       "connected": true,
       "value": "sk_mu2jjkg...",
-      "last_updated": "2026-09-21 23:09:59",
-      "note": "Updated at 2026-09-21 23:09:59"
+      "last_updated": "2026-09-29 14:11:06",
+      "note": "Updated at 2026-09-29 14:11:06"
     },
     "LINKEDIN_PLATFORM_ID": {
       "connected": true,
       "value": "linkedin-c...",
-      "last_updated": "2026-09-21 23:09:59",
-      "note": "Updated at 2026-09-21 23:09:59"
+      "last_updated": "2026-09-29 14:11:06",
+      "note": "Updated at 2026-09-29 14:11:06"
     },
     "APIFY_TOKEN": {
       "connected": true,
       "value": "apify_api_...",
-      "last_updated": "2026-09-21 23:09:59",
-      "note": "Updated at 2026-09-21 23:09:59"
+      "last_updated": "2026-09-29 14:11:06",
+      "note": "Updated at 2026-09-29 14:11:06"
     }
   },
   "runs": [
@@ -139,6 +139,44 @@
       "date": "2026-09-29",
       "time": "14:05:31",
       "topic": "ai skills  essential for founders in 2026",
+      "success": false,
+      "published_at": "-",
+      "post_id": "-"
+    },
+    {
+      "type": "COMMENT REPLY",
+      "date": "2026-09-29",
+      "time": "14:11:46",
+      "topic": "urn:li:share:7505906074131120128",
+      "post_urn": "urn:li:share:7505906074131120128",
+      "comments_found": 7,
+      "replies_posted": 0,
+      "success": false,
+      "published_at": "14:11:46"
+    },
+    {
+      "type": "INSTAGRAM POST",
+      "date": "2026-09-29",
+      "time": "16:27:54",
+      "topic": "AI skills essential for founders in 2026",
+      "success": false,
+      "published_at": "-",
+      "post_id": "-"
+    },
+    {
+      "type": "INSTAGRAM POST",
+      "date": "2026-09-29",
+      "time": "16:34:46",
+      "topic": "AI skills essential for founders in 2026",
+      "success": false,
+      "published_at": "-",
+      "post_id": "-"
+    },
+    {
+      "type": "INSTAGRAM POST",
+      "date": "2026-09-29",
+      "time": "16:35:07",
+      "topic": "AI skills essential for founders in 2026",
       "success": false,
       "published_at": "-",
       "post_id": "-"

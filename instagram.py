@@ -23,13 +23,12 @@ HASHTAGS = """
 #SaiNithish #MG3Verse #TripuraAI #AI #GenerativeAI #AIAgents #AIAutomation #AIEngineering #BusinessAutomation #AIForBusiness #DigitalTransformation #FutureOfWork
 """
 
-# Colors — classic navy + gold
-WHITE = (255, 255, 255)
-GOLD = (226, 183, 74)
-GOLD_DIM = (150, 122, 58)
-NAVY_GLOW = (40, 80, 170)
-SOFT = (190, 198, 222)
-LINE = (52, 64, 96)
+# Colors — light theme with gold accents
+DARK = (20, 20, 40)
+GOLD = (180, 130, 30)
+GOLD_DIM = (180, 130, 30)
+SOFT = (80, 80, 100)
+LINE = (220, 220, 230)
 STOPWORDS = {"by", "in", "the", "a", "an", "for", "to", "of", "and", "on", "at", "with",
              "your", "you", "need", "is", "are", "that", "this", "it", "as", "be"}
 
@@ -85,7 +84,6 @@ Write ONLY the caption text. Nothing else.
 
 
 def generate_card_content(topic):
-    """Ask Gemini for the text that goes ON the image."""
     prompt = f"""
 You design viral Instagram cards. Topic: "{topic}"
 
@@ -128,19 +126,16 @@ FONT_SERIF = [
     "C:/Windows/Fonts/timesbd.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
     "DejaVuSerif-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
 ]
 FONT_BOLD = [
     "C:/Windows/Fonts/segoeuib.ttf",
     "C:/Windows/Fonts/arialbd.ttf",
     "DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 ]
 FONT_REG = [
     "C:/Windows/Fonts/segoeui.ttf",
     "C:/Windows/Fonts/arial.ttf",
     "DejaVuSans.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 ]
 
 
@@ -168,17 +163,7 @@ def wrap_words(draw, words, font, max_w):
     return lines
 
 
-def add_glow(base, center, radius, color, alpha=140):
-    layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    cx, cy = center
-    d.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=color + (alpha,))
-    layer = layer.filter(ImageFilter.GaussianBlur(radius * 0.6))
-    return Image.alpha_composite(base, layer)
-
-
 def balanced_lines(draw, text, font, max_w, max_lines=2):
-    """Wrap text; if it needs two lines, split them evenly (no lonely last word)."""
     words = text.split()
     lines = wrap_words(draw, words, font, max_w)
     if len(lines) == 2:
@@ -202,26 +187,33 @@ def norm_point(p):
 
 
 def generate_image(content):
-    """Classic 1080x1350 (4:5) card: navy + gold, serif headline, numbered list."""
     print("Generating image...")
     W, H = 1080, 1350
     LEFT, RIGHT = 100, W - 100
 
-    # 1. Navy gradient background with very soft glows
+    # Light white/cream gradient background
     bg = Image.new("RGB", (W, H))
     d = ImageDraw.Draw(bg)
     for y in range(H):
         t = y / H
-        d.line([(0, y), (W, y)], fill=(int(9 + 9 * t), int(16 + 18 * t), int(36 + 34 * t)))
+        d.line([(0, y), (W, y)], fill=(
+            int(252 - 8 * t),
+            int(252 - 8 * t),
+            int(255 - 5 * t)
+        ))
     base = bg.convert("RGBA")
-    base = add_glow(base, (1000, 60), 380, NAVY_GLOW, 55)
-    base = add_glow(base, (40, 1300), 400, NAVY_GLOW, 60)
     draw = ImageDraw.Draw(base)
 
-    # 2. Thin gold frame + top accent rule
+    # Thin gold frame
     draw.rectangle([44, 44, W - 44, H - 44], outline=GOLD_DIM, width=2)
 
-    # 3. Headline — serif, auto-fit, highlighted words in gold
+    # Gold accent bar at top
+    draw.rectangle([44, 44, W - 44, 52], fill=GOLD)
+
+    # Gold accent bar at bottom
+    draw.rectangle([44, H - 52, W - 44, H - 44], fill=GOLD)
+
+    # Headline
     headline = content["headline"].strip()
     words = headline.split()
     hl_set = {re.sub(r"\W", "", w.lower()) for w in content.get("highlight", "").split()}
@@ -240,23 +232,23 @@ def generate_image(content):
     f_head = load_font(size, serif=True)
     lines = wrap_words(draw, words, f_head, max_w)
     line_h = int(size * 1.2)
-    y = 170 + (440 - len(lines) * line_h) // 2
+    y = 130 + (440 - len(lines) * line_h) // 2
     draw.rectangle([LEFT, y - 34, LEFT + 90, y - 29], fill=GOLD)
     space = draw.textlength(" ", font=f_head)
     for line in lines:
         x = LEFT
         for w in line:
             key = re.sub(r"\W", "", w.lower())
-            draw.text((x, y), w, font=f_head, fill=GOLD if key in hl_set else WHITE)
+            draw.text((x, y), w, font=f_head, fill=GOLD if key in hl_set else DARK)
             x += draw.textlength(w, font=f_head) + space
         y += line_h
 
-    # 4. Divider between headline and list
-    draw.rectangle([LEFT, 655, RIGHT, 657], fill=GOLD_DIM)
+    # Divider
+    draw.rectangle([LEFT, 620, RIGHT, 622], fill=GOLD_DIM)
 
-    # 5. Numbered list: 01 / 02 / 03
+    # Numbered list
     points = [norm_point(p) for p in content["points"][:3]]
-    row_h, list_top = 185, 680
+    row_h, list_top = 200, 640
     f_num = load_font(68, serif=True)
     f_desc = load_font(31, False)
     text_x = LEFT + 150
@@ -265,7 +257,6 @@ def generate_image(content):
         row_top = list_top + i * row_h
         cy = row_top + row_h // 2
         draw.text((LEFT, cy), f"0{i + 1}", font=f_num, fill=GOLD, anchor="lm")
-
         t_size = 44
         while t_size > 30 and draw.textlength(p["title"], font=load_font(t_size, serif=True)) > text_w:
             t_size -= 2
@@ -273,7 +264,7 @@ def generate_image(content):
         d_lines = balanced_lines(draw, p["desc"], f_desc, text_w) if p["desc"] else []
         block = 52 + ((10 + len(d_lines) * 40) if d_lines else 0)
         ty = cy - block // 2
-        draw.text((text_x, ty), p["title"], font=f_t, fill=WHITE)
+        draw.text((text_x, ty), p["title"], font=f_t, fill=DARK)
         dy = ty + 62
         for dl in d_lines:
             draw.text((text_x, dy), dl, font=f_desc, fill=SOFT)
@@ -281,7 +272,7 @@ def generate_image(content):
         if i < len(points) - 1:
             draw.rectangle([LEFT, row_top + row_h, RIGHT, row_top + row_h + 1], fill=LINE)
 
-    # 6. Save
+    # Save
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     path = os.path.join(OUTPUT_DIR, f"post_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
     base.convert("RGB").save(path, "JPEG", quality=95)
@@ -345,7 +336,6 @@ if __name__ == "__main__":
     card = generate_card_content(topic)
     image_path = generate_image(card)
 
-    # Open the image automatically on Windows
     try:
         if os.name == "nt":
             os.startfile(os.path.abspath(image_path))
