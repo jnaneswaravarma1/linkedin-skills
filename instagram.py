@@ -23,12 +23,60 @@ HASHTAGS = """
 #SaiNithish #MG3Verse #TripuraAI #AI #GenerativeAI #AIAgents #AIAutomation #AIEngineering #BusinessAutomation #AIForBusiness #DigitalTransformation #FutureOfWork
 """
 
-# Colors — light theme with gold accents
-DARK = (20, 20, 40)
-GOLD = (180, 130, 30)
-GOLD_DIM = (180, 130, 30)
-SOFT = (80, 80, 100)
-LINE = (220, 220, 230)
+# ---------- Themes ----------
+THEMES = {
+    "GOLD": {
+        "bg_top": (252, 252, 255),
+        "bg_bottom": (244, 244, 248),
+        "accent": (180, 130, 30),
+        "accent_dim": (180, 130, 30),
+        "text_dark": (20, 20, 40),
+        "text_soft": (80, 80, 100),
+        "line": (220, 220, 230),
+        "label": "Classic Gold"
+    },
+    "RED": {
+        "bg_top": (255, 252, 252),
+        "bg_bottom": (248, 244, 244),
+        "accent": (180, 30, 40),
+        "accent_dim": (160, 30, 40),
+        "text_dark": (30, 10, 10),
+        "text_soft": (100, 60, 60),
+        "line": (230, 210, 210),
+        "label": "Bold Red"
+    },
+    "NAVY": {
+        "bg_top": (252, 252, 255),
+        "bg_bottom": (240, 242, 250),
+        "accent": (25, 60, 140),
+        "accent_dim": (25, 60, 140),
+        "text_dark": (10, 20, 50),
+        "text_soft": (60, 70, 110),
+        "line": (200, 210, 235),
+        "label": "Deep Navy"
+    },
+    "GREEN": {
+        "bg_top": (252, 255, 252),
+        "bg_bottom": (242, 250, 242),
+        "accent": (30, 120, 60),
+        "accent_dim": (30, 120, 60),
+        "text_dark": (10, 30, 15),
+        "text_soft": (50, 90, 60),
+        "line": (200, 230, 210),
+        "label": "Forest Green"
+    },
+    "PURPLE": {
+        "bg_top": (253, 252, 255),
+        "bg_bottom": (244, 242, 252),
+        "accent": (100, 50, 180),
+        "accent_dim": (100, 50, 180),
+        "text_dark": (20, 10, 40),
+        "text_soft": (80, 60, 110),
+        "line": (220, 210, 240),
+        "label": "Modern Purple"
+    }
+}
+
 STOPWORDS = {"by", "in", "the", "a", "an", "for", "to", "of", "and", "on", "at", "with",
              "your", "you", "need", "is", "are", "that", "this", "it", "as", "be"}
 
@@ -120,6 +168,35 @@ Rules: punchy, specific, no emojis, no numbering.
         }
 
 
+def select_theme(topic):
+    """Gemini selects the best theme based on topic"""
+    prompt = f"""
+You are a visual design expert.
+
+Based on this topic: "{topic}"
+
+Select the MOST suitable theme from these 5 options:
+
+1. GOLD — Classic, professional, authority, business insights
+2. RED — Urgent, bold, risky, warning, must-know information
+3. NAVY — Personal, founders, leadership, strategic thinking
+4. GREEN — Growth, skills, jobs, career, data advantages
+5. PURPLE — Tech, innovation, AI tools, future, modern
+
+Reply with ONLY the theme name — one word: GOLD, RED, NAVY, GREEN, or PURPLE
+Nothing else.
+"""
+    response = client.models.generate_content(model=MODEL, contents=prompt)
+    theme = response.text.strip().upper()
+    # Clean any extra text
+    for t in ["GOLD", "RED", "NAVY", "GREEN", "PURPLE"]:
+        if t in theme:
+            print(f"🎨 Theme selected: {t} — {THEMES[t]['label']}")
+            return t
+    print("🎨 Theme selected: GOLD (default)")
+    return "GOLD"
+
+
 # ---------- Image helpers ----------
 FONT_SERIF = [
     "C:/Windows/Fonts/georgiab.ttf",
@@ -186,32 +263,34 @@ def norm_point(p):
     return {"title": p.get("title", ""), "desc": p.get("desc", "")}
 
 
-def generate_image(content):
-    print("Generating image...")
+def generate_image(content, theme_name="GOLD"):
+    """Generate image with selected theme"""
+    print(f"Generating image with {THEMES[theme_name]['label']} theme...")
     W, H = 1080, 1350
     LEFT, RIGHT = 100, W - 100
 
-    # Light white/cream gradient background
+    T = THEMES[theme_name]
+
+    # Gradient background
     bg = Image.new("RGB", (W, H))
     d = ImageDraw.Draw(bg)
     for y in range(H):
         t = y / H
-        d.line([(0, y), (W, y)], fill=(
-            int(252 - 8 * t),
-            int(252 - 8 * t),
-            int(255 - 5 * t)
-        ))
+        r = int(T["bg_top"][0] + (T["bg_bottom"][0] - T["bg_top"][0]) * t)
+        g = int(T["bg_top"][1] + (T["bg_bottom"][1] - T["bg_top"][1]) * t)
+        b = int(T["bg_top"][2] + (T["bg_bottom"][2] - T["bg_top"][2]) * t)
+        d.line([(0, y), (W, y)], fill=(r, g, b))
     base = bg.convert("RGBA")
     draw = ImageDraw.Draw(base)
 
-    # Thin gold frame
-    draw.rectangle([44, 44, W - 44, H - 44], outline=GOLD_DIM, width=2)
+    # Thin frame
+    draw.rectangle([44, 44, W - 44, H - 44], outline=T["accent_dim"], width=2)
 
-    # Gold accent bar at top
-    draw.rectangle([44, 44, W - 44, 52], fill=GOLD)
+    # Accent bar top
+    draw.rectangle([44, 44, W - 44, 52], fill=T["accent"])
 
-    # Gold accent bar at bottom
-    draw.rectangle([44, H - 52, W - 44, H - 44], fill=GOLD)
+    # Accent bar bottom
+    draw.rectangle([44, H - 52, W - 44, H - 44], fill=T["accent"])
 
     # Headline
     headline = content["headline"].strip()
@@ -233,18 +312,19 @@ def generate_image(content):
     lines = wrap_words(draw, words, f_head, max_w)
     line_h = int(size * 1.2)
     y = 130 + (440 - len(lines) * line_h) // 2
-    draw.rectangle([LEFT, y - 34, LEFT + 90, y - 29], fill=GOLD)
+    draw.rectangle([LEFT, y - 34, LEFT + 90, y - 29], fill=T["accent"])
     space = draw.textlength(" ", font=f_head)
     for line in lines:
         x = LEFT
         for w in line:
             key = re.sub(r"\W", "", w.lower())
-            draw.text((x, y), w, font=f_head, fill=GOLD if key in hl_set else DARK)
+            draw.text((x, y), w, font=f_head,
+                      fill=T["accent"] if key in hl_set else T["text_dark"])
             x += draw.textlength(w, font=f_head) + space
         y += line_h
 
     # Divider
-    draw.rectangle([LEFT, 620, RIGHT, 622], fill=GOLD_DIM)
+    draw.rectangle([LEFT, 620, RIGHT, 622], fill=T["accent_dim"])
 
     # Numbered list
     points = [norm_point(p) for p in content["points"][:3]]
@@ -256,25 +336,31 @@ def generate_image(content):
     for i, p in enumerate(points):
         row_top = list_top + i * row_h
         cy = row_top + row_h // 2
-        draw.text((LEFT, cy), f"0{i + 1}", font=f_num, fill=GOLD, anchor="lm")
+        draw.text((LEFT, cy), f"0{i + 1}", font=f_num,
+                  fill=T["accent"], anchor="lm")
         t_size = 44
-        while t_size > 30 and draw.textlength(p["title"], font=load_font(t_size, serif=True)) > text_w:
+        while t_size > 30 and draw.textlength(
+                p["title"], font=load_font(t_size, serif=True)) > text_w:
             t_size -= 2
         f_t = load_font(t_size, serif=True)
         d_lines = balanced_lines(draw, p["desc"], f_desc, text_w) if p["desc"] else []
         block = 52 + ((10 + len(d_lines) * 40) if d_lines else 0)
         ty = cy - block // 2
-        draw.text((text_x, ty), p["title"], font=f_t, fill=DARK)
+        draw.text((text_x, ty), p["title"], font=f_t, fill=T["text_dark"])
         dy = ty + 62
         for dl in d_lines:
-            draw.text((text_x, dy), dl, font=f_desc, fill=SOFT)
+            draw.text((text_x, dy), dl, font=f_desc, fill=T["text_soft"])
             dy += 40
         if i < len(points) - 1:
-            draw.rectangle([LEFT, row_top + row_h, RIGHT, row_top + row_h + 1], fill=LINE)
+            draw.rectangle(
+                [LEFT, row_top + row_h, RIGHT, row_top + row_h + 1],
+                fill=T["line"])
 
     # Save
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    path = os.path.join(OUTPUT_DIR, f"post_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+    path = os.path.join(
+        OUTPUT_DIR,
+        f"post_{theme_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
     base.convert("RGB").save(path, "JPEG", quality=95)
     print(f"✅ Image created: {os.path.abspath(path)}")
     return path
@@ -325,6 +411,9 @@ if __name__ == "__main__":
 
     topic = input("\nWhat topic do you want to post about? : ")
 
+    print("\nSelecting best theme for your topic...")
+    theme = select_theme(topic)
+
     print("\nGenerating caption...")
     caption = generate_caption(topic)
     print("\n" + "=" * 50)
@@ -334,8 +423,11 @@ if __name__ == "__main__":
 
     print("\nGenerating card text...")
     card = generate_card_content(topic)
-    image_path = generate_image(card)
 
+    print("\nGenerating image...")
+    image_path = generate_image(card, theme)
+
+    # Open image automatically
     try:
         if os.name == "nt":
             os.startfile(os.path.abspath(image_path))
@@ -352,7 +444,8 @@ if __name__ == "__main__":
             result = post_to_instagram(caption, image_url)
             success = result.get("success", False)
             post_id = result.get("postGroupId", "-")
-            print("\n✅ Posted successfully to Instagram!" if success else "\n❌ Something went wrong.")
+            print("\n✅ Posted successfully to Instagram!" if success
+                  else "\n❌ Something went wrong.")
             logs = log_run(load_logs(), topic, success, post_id)
             save_logs(logs)
             print("📝 Run logged to dashboard.")
