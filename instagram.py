@@ -1,11 +1,12 @@
 from google import genai
 from dotenv import load_dotenv
 from datetime import datetime, timezone
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 import os
 import re
 import requests
 import json
+import subprocess
 
 # ---------- Setup ----------
 load_dotenv()
@@ -19,64 +20,48 @@ LOG_FILE = "logs.json"
 OUTPUT_DIR = "instagram_posts"
 MODEL = "gemini-3.5-flash-lite"
 
+MUSIC_DIR = "music"      # folder with red.mp3, green.mp3, navy.mp3, purple.mp3, gold.mp3
+MAKE_REEL = True         # True = post a Reel with music, False = post the plain image
+REEL_SECONDS = 15        # Reel length (Instagram allows 3-90 seconds)
+
 HASHTAGS = """
 #SaiNithish #MG3Verse #TripuraAI #AI #GenerativeAI #AIAgents #AIAutomation #AIEngineering #BusinessAutomation #AIForBusiness #DigitalTransformation #FutureOfWork
 """
 
-# ---------- Themes ----------
+# ---------- Themes (picked automatically from the topic) ----------
 THEMES = {
-    "GOLD": {
-        "bg_top": (252, 252, 255),
-        "bg_bottom": (244, 244, 248),
-        "accent": (180, 130, 30),
-        "accent_dim": (180, 130, 30),
-        "text_dark": (20, 20, 40),
-        "text_soft": (80, 80, 100),
-        "line": (220, 220, 230),
-        "label": "Classic Gold"
-    },
-    "RED": {
-        "bg_top": (255, 252, 252),
-        "bg_bottom": (248, 244, 244),
-        "accent": (180, 30, 40),
-        "accent_dim": (160, 30, 40),
-        "text_dark": (30, 10, 10),
-        "text_soft": (100, 60, 60),
-        "line": (230, 210, 210),
-        "label": "Bold Red"
-    },
-    "NAVY": {
-        "bg_top": (252, 252, 255),
-        "bg_bottom": (240, 242, 250),
-        "accent": (25, 60, 140),
-        "accent_dim": (25, 60, 140),
-        "text_dark": (10, 20, 50),
-        "text_soft": (60, 70, 110),
-        "line": (200, 210, 235),
-        "label": "Deep Navy"
-    },
-    "GREEN": {
-        "bg_top": (252, 255, 252),
-        "bg_bottom": (242, 250, 242),
-        "accent": (30, 120, 60),
-        "accent_dim": (30, 120, 60),
-        "text_dark": (10, 30, 15),
-        "text_soft": (50, 90, 60),
-        "line": (200, 230, 210),
-        "label": "Forest Green"
-    },
-    "PURPLE": {
-        "bg_top": (253, 252, 255),
-        "bg_bottom": (244, 242, 252),
-        "accent": (100, 50, 180),
-        "accent_dim": (100, 50, 180),
-        "text_dark": (20, 10, 40),
-        "text_soft": (80, 60, 110),
-        "line": (220, 210, 240),
-        "label": "Modern Purple"
-    }
+    "urgent":    {"name": "Bold Red",      "color": (196, 30, 48),  "music": "red.mp3"},
+    "jobs":      {"name": "Forest Green",  "color": (30, 106, 58),  "music": "green.mp3"},
+    "founders":  {"name": "Deep Navy",     "color": (18, 44, 112),  "music": "navy.mp3"},
+    "data":      {"name": "Purple",        "color": (108, 48, 160), "music": "purple.mp3"},
+    "quickwins": {"name": "Classic Gold",  "color": (180, 130, 30), "music": "gold.mp3"},
 }
 
+KEYWORDS = {
+    "urgent":   ["risk", "danger", "replac", "urgent", "warning", "fall behind", "threat",
+                 "security", "ignore", "crisis", "autonomous", "growing"],
+    "jobs":     ["job", "skill", "career", "hire", "hiring", "salary", "learn", "workforce",
+                 "automate", "judgment", "thinking"],
+    "founders": ["founder", "personal", "story", "stories", "human", "leader", "mindset",
+                 "entrepreneur", "audience", "brand"],
+    "data":     ["data", "company", "analytics", "enterprise", "report", "search", "rank",
+                 "chatgpt", "google", "seo"],
+}
+
+
+def pick_theme(topic):
+    """Keyword-based theme choice (used as fallback and to force red on urgent topics)."""
+    t = topic.lower()
+    for key, words in KEYWORDS.items():
+        if any(w in t for w in words):
+            return key
+    return "quickwins"
+
+
+# ---------- Colors ----------
+DARK = (20, 20, 40)
+SOFT = (85, 85, 105)
+LINE = (222, 222, 232)
 STOPWORDS = {"by", "in", "the", "a", "an", "for", "to", "of", "and", "on", "at", "with",
              "your", "you", "need", "is", "are", "that", "this", "it", "as", "be"}
 
@@ -132,11 +117,13 @@ Write ONLY the caption text. Nothing else.
 
 
 def generate_card_content(topic):
+    """Ask Gemini for the text on the image AND the best theme for the topic."""
     prompt = f"""
 You design viral Instagram cards. Topic: "{topic}"
 
 Return ONLY valid JSON (no markdown, no backticks) in this exact shape:
 {{
+  "theme": "one of: urgent, jobs, founders, data, quickwins",
   "headline": "bold hook, max 7 words, makes people stop scrolling",
   "highlight": "the 1-2 most important words copied from the headline (never filler words like by, in, for)",
   "points": [
@@ -146,6 +133,13 @@ Return ONLY valid JSON (no markdown, no backticks) in this exact shape:
   ]
 }}
 
+Theme rules:
+- urgent = urgent, risky or warning topics
+- jobs = jobs, skills, careers topics
+- founders = personal, human, founder or story topics
+- data = data, company, search or analytics topics
+- quickwins = quick wins, tips, general topics
+
 Rules: punchy, specific, no emojis, no numbering.
 """
     try:
@@ -154,10 +148,16 @@ Rules: punchy, specific, no emojis, no numbering.
         text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
         data = json.loads(text)
         assert data.get("headline") and len(data.get("points", [])) >= 3
+        if data.get("theme") not in THEMES:
+            data["theme"] = pick_theme(topic)
+        # urgent/risky topics always get red, even if Gemini picks another theme
+        if pick_theme(topic) == "urgent":
+            data["theme"] = "urgent"
         return data
     except Exception as e:
         print(f"(Card text fallback used: {e})")
         return {
+            "theme": pick_theme(topic),
             "headline": topic[:50].title(),
             "highlight": topic.split()[0] if topic.split() else "",
             "points": [
@@ -168,51 +168,25 @@ Rules: punchy, specific, no emojis, no numbering.
         }
 
 
-def select_theme(topic):
-    """Gemini selects the best theme based on topic"""
-    prompt = f"""
-You are a visual design expert.
-
-Based on this topic: "{topic}"
-
-Select the MOST suitable theme from these 5 options:
-
-1. GOLD — Classic, professional, authority, business insights
-2. RED — Urgent, bold, risky, warning, must-know information
-3. NAVY — Personal, founders, leadership, strategic thinking
-4. GREEN — Growth, skills, jobs, career, data advantages
-5. PURPLE — Tech, innovation, AI tools, future, modern
-
-Reply with ONLY the theme name — one word: GOLD, RED, NAVY, GREEN, or PURPLE
-Nothing else.
-"""
-    response = client.models.generate_content(model=MODEL, contents=prompt)
-    theme = response.text.strip().upper()
-    # Clean any extra text
-    for t in ["GOLD", "RED", "NAVY", "GREEN", "PURPLE"]:
-        if t in theme:
-            print(f"🎨 Theme selected: {t} — {THEMES[t]['label']}")
-            return t
-    print("🎨 Theme selected: GOLD (default)")
-    return "GOLD"
-
-
 # ---------- Image helpers ----------
 FONT_SERIF = [
     "C:/Windows/Fonts/georgiab.ttf",
     "C:/Windows/Fonts/timesbd.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf",
     "DejaVuSerif-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
 ]
 FONT_BOLD = [
     "C:/Windows/Fonts/segoeuib.ttf",
     "C:/Windows/Fonts/arialbd.ttf",
     "DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 ]
 FONT_REG = [
     "C:/Windows/Fonts/segoeui.ttf",
     "C:/Windows/Fonts/arial.ttf",
     "DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 ]
 
 
@@ -263,36 +237,29 @@ def norm_point(p):
     return {"title": p.get("title", ""), "desc": p.get("desc", "")}
 
 
-def generate_image(content, theme_name="GOLD"):
-    """Generate image with selected theme"""
-    print(f"Generating image with {THEMES[theme_name]['label']} theme...")
+def generate_image(content, theme_key="quickwins"):
+    """Light 1080x1350 card. Accent color changes with the topic's theme."""
+    print("Generating image...")
+    theme = THEMES.get(theme_key, THEMES["quickwins"])
+    ACCENT = theme["color"]
     W, H = 1080, 1350
     LEFT, RIGHT = 100, W - 100
 
-    T = THEMES[theme_name]
-
-    # Gradient background
+    # 1. Light background
     bg = Image.new("RGB", (W, H))
     d = ImageDraw.Draw(bg)
     for y in range(H):
         t = y / H
-        r = int(T["bg_top"][0] + (T["bg_bottom"][0] - T["bg_top"][0]) * t)
-        g = int(T["bg_top"][1] + (T["bg_bottom"][1] - T["bg_top"][1]) * t)
-        b = int(T["bg_top"][2] + (T["bg_bottom"][2] - T["bg_top"][2]) * t)
-        d.line([(0, y), (W, y)], fill=(r, g, b))
+        d.line([(0, y), (W, y)], fill=(int(252 - 8 * t), int(252 - 8 * t), int(255 - 5 * t)))
     base = bg.convert("RGBA")
     draw = ImageDraw.Draw(base)
 
-    # Thin frame
-    draw.rectangle([44, 44, W - 44, H - 44], outline=T["accent_dim"], width=2)
+    # 2. Themed frame + top and bottom bars
+    draw.rectangle([44, 44, W - 44, H - 44], outline=ACCENT, width=2)
+    draw.rectangle([44, 44, W - 44, 54], fill=ACCENT)
+    draw.rectangle([44, H - 54, W - 44, H - 44], fill=ACCENT)
 
-    # Accent bar top
-    draw.rectangle([44, 44, W - 44, 52], fill=T["accent"])
-
-    # Accent bar bottom
-    draw.rectangle([44, H - 52, W - 44, H - 44], fill=T["accent"])
-
-    # Headline
+    # 3. Headline — serif, auto-fit, highlighted words in theme color
     headline = content["headline"].strip()
     words = headline.split()
     hl_set = {re.sub(r"\W", "", w.lower()) for w in content.get("highlight", "").split()}
@@ -311,24 +278,23 @@ def generate_image(content, theme_name="GOLD"):
     f_head = load_font(size, serif=True)
     lines = wrap_words(draw, words, f_head, max_w)
     line_h = int(size * 1.2)
-    y = 130 + (440 - len(lines) * line_h) // 2
-    draw.rectangle([LEFT, y - 34, LEFT + 90, y - 29], fill=T["accent"])
+    y = 170 + (440 - len(lines) * line_h) // 2
+    draw.rectangle([LEFT, y - 34, LEFT + 90, y - 29], fill=ACCENT)
     space = draw.textlength(" ", font=f_head)
     for line in lines:
         x = LEFT
         for w in line:
             key = re.sub(r"\W", "", w.lower())
-            draw.text((x, y), w, font=f_head,
-                      fill=T["accent"] if key in hl_set else T["text_dark"])
+            draw.text((x, y), w, font=f_head, fill=ACCENT if key in hl_set else DARK)
             x += draw.textlength(w, font=f_head) + space
         y += line_h
 
-    # Divider
-    draw.rectangle([LEFT, 620, RIGHT, 622], fill=T["accent_dim"])
+    # 4. Divider
+    draw.rectangle([LEFT, 655, RIGHT, 657], fill=ACCENT)
 
-    # Numbered list
+    # 5. Numbered list
     points = [norm_point(p) for p in content["points"][:3]]
-    row_h, list_top = 200, 640
+    row_h, list_top = 185, 680
     f_num = load_font(68, serif=True)
     f_desc = load_font(31, False)
     text_x = LEFT + 150
@@ -336,47 +302,83 @@ def generate_image(content, theme_name="GOLD"):
     for i, p in enumerate(points):
         row_top = list_top + i * row_h
         cy = row_top + row_h // 2
-        draw.text((LEFT, cy), f"0{i + 1}", font=f_num,
-                  fill=T["accent"], anchor="lm")
+        draw.text((LEFT, cy), f"0{i + 1}", font=f_num, fill=ACCENT, anchor="lm")
+
         t_size = 44
-        while t_size > 30 and draw.textlength(
-                p["title"], font=load_font(t_size, serif=True)) > text_w:
+        while t_size > 30 and draw.textlength(p["title"], font=load_font(t_size, serif=True)) > text_w:
             t_size -= 2
         f_t = load_font(t_size, serif=True)
         d_lines = balanced_lines(draw, p["desc"], f_desc, text_w) if p["desc"] else []
         block = 52 + ((10 + len(d_lines) * 40) if d_lines else 0)
         ty = cy - block // 2
-        draw.text((text_x, ty), p["title"], font=f_t, fill=T["text_dark"])
+        draw.text((text_x, ty), p["title"], font=f_t, fill=DARK)
         dy = ty + 62
         for dl in d_lines:
-            draw.text((text_x, dy), dl, font=f_desc, fill=T["text_soft"])
+            draw.text((text_x, dy), dl, font=f_desc, fill=SOFT)
             dy += 40
         if i < len(points) - 1:
-            draw.rectangle(
-                [LEFT, row_top + row_h, RIGHT, row_top + row_h + 1],
-                fill=T["line"])
+            draw.rectangle([LEFT, row_top + row_h, RIGHT, row_top + row_h + 1], fill=LINE)
 
-    # Save
+    # 6. Save
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    path = os.path.join(
-        OUTPUT_DIR,
-        f"post_{theme_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+    path = os.path.join(OUTPUT_DIR, f"post_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
     base.convert("RGB").save(path, "JPEG", quality=95)
     print(f"✅ Image created: {os.path.abspath(path)}")
     return path
 
 
+# ---------- Reel (image + music -> MP4) ----------
+def make_reel(image_path, theme_key, seconds=REEL_SECONDS):
+    """Turn the card into a 1080x1920 MP4 Reel with the theme's music."""
+    try:
+        import imageio_ffmpeg
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        print("❌ Run: pip install moviepy imageio-ffmpeg")
+        return None
+
+    music_path = os.path.join(MUSIC_DIR, THEMES[theme_key]["music"])
+    out_path = image_path.replace(".jpg", ".mp4")
+    fade_out_at = max(seconds - 2, 0)
+
+    cmd = [ffmpeg, "-y", "-loop", "1", "-framerate", "30", "-i", image_path]
+    if os.path.exists(music_path):
+        cmd += ["-stream_loop", "-1", "-i", music_path]
+    else:
+        print(f"⚠️ Music file not found: {music_path} — making a silent Reel")
+        cmd += ["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
+    cmd += [
+        "-t", str(seconds),
+        "-vf", "scale=1080:1350,pad=1080:1920:0:285:color=0xFCFCFF,format=yuv420p",
+        "-af", f"afade=t=in:st=0:d=1,afade=t=out:st={fade_out_at}:d=2",
+        "-c:v", "libx264", "-tune", "stillimage", "-r", "30",
+        "-c:a", "aac", "-b:a", "192k", "-ar", "44100",
+        "-movflags", "+faststart",
+        out_path,
+    ]
+    print(f"Making Reel with music ({THEMES[theme_key]['music']})...")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print("❌ Video creation failed:")
+        print(result.stderr[-600:])
+        return None
+    print(f"✅ Reel created: {os.path.abspath(out_path)}")
+    return out_path
+
+
 # ---------- Publora ----------
-def upload_image_to_publora(image_path):
-    print("Uploading image to Publora...")
+def upload_media_to_publora(file_path):
+    print("Uploading to Publora...")
     try:
         url = "https://api.publora.com/api/v1/upload-media"
         headers = {"x-publora-key": publora_key}
-        with open(image_path, "rb") as f:
-            files = {"file": ("image.jpg", f, "image/jpeg")}
-            response = requests.post(url, headers=headers, files=files)
+        is_video = file_path.lower().endswith(".mp4")
+        name, mime = ("reel.mp4", "video/mp4") if is_video else ("image.jpg", "image/jpeg")
+        with open(file_path, "rb") as f:
+            files = {"file": (name, f, mime)}
+            response = requests.post(url, headers=headers, files=files, timeout=300)
         print("Upload status:", response.status_code)
-        print("Upload response:", response.text[:200])
+        print("Upload response:", response.text[:300])
         if response.status_code == 200:
             data = response.json()
             return data.get("url") or data.get("mediaUrl")
@@ -385,14 +387,14 @@ def upload_image_to_publora(image_path):
     return None
 
 
-def post_to_instagram(caption, image_url):
+def post_to_instagram(caption, media_url):
     url = "https://api.publora.com/api/v1/create-post"
     headers = {"x-publora-key": publora_key, "Content-Type": "application/json"}
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     payload = {
         "platforms": [instagram_id],
         "content": caption,
-        "mediaUrls": [image_url],
+        "mediaUrls": [media_url],
         "scheduledTime": now,
     }
     response = requests.post(url, headers=headers, json=payload)
@@ -411,9 +413,6 @@ if __name__ == "__main__":
 
     topic = input("\nWhat topic do you want to post about? : ")
 
-    print("\nSelecting best theme for your topic...")
-    theme = select_theme(topic)
-
     print("\nGenerating caption...")
     caption = generate_caption(topic)
     print("\n" + "=" * 50)
@@ -423,34 +422,40 @@ if __name__ == "__main__":
 
     print("\nGenerating card text...")
     card = generate_card_content(topic)
+    theme_key = card.get("theme", "quickwins")
+    print(f"🎨 Theme selected: {THEMES[theme_key]['name']}")
+    image_path = generate_image(card, theme_key)
 
-    print("\nGenerating image...")
-    image_path = generate_image(card, theme)
+    media_path = image_path
+    if MAKE_REEL:
+        reel_path = make_reel(image_path, theme_key)
+        if reel_path:
+            media_path = reel_path
 
-    # Open image automatically
+    # Open the result automatically (Reel plays with music)
     try:
         if os.name == "nt":
-            os.startfile(os.path.abspath(image_path))
+            os.startfile(os.path.abspath(media_path))
     except Exception:
         pass
 
-    approve = input("\nDo you want to post this to Instagram? (yes/no): ")
+    kind = "Reel" if media_path.endswith(".mp4") else "image"
+    approve = input(f"\nDo you want to post this {kind} to Instagram? (yes/no): ")
 
     if approve.lower() == "yes":
-        image_url = upload_image_to_publora(image_path)
-        if image_url:
-            print(f"\nImage URL: {image_url}")
+        media_url = upload_media_to_publora(media_path)
+        if media_url:
+            print(f"\nMedia URL: {media_url}")
             print("\nPosting to Instagram...")
-            result = post_to_instagram(caption, image_url)
+            result = post_to_instagram(caption, media_url)
             success = result.get("success", False)
             post_id = result.get("postGroupId", "-")
-            print("\n✅ Posted successfully to Instagram!" if success
-                  else "\n❌ Something went wrong.")
+            print("\n✅ Posted successfully to Instagram!" if success else "\n❌ Something went wrong.")
             logs = log_run(load_logs(), topic, success, post_id)
             save_logs(logs)
             print("📝 Run logged to dashboard.")
         else:
-            print("\n❌ Image upload failed.")
+            print("\n❌ Upload failed.")
     else:
         logs = log_run(load_logs(), topic, False)
         save_logs(logs)
